@@ -142,3 +142,4 @@ if 'acquired' in filtered_df['status'].values:
     st.pyplot(fig9)
 else:
     st.info("No acquisitions found in the filtered data.")
+    
