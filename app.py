@@ -11,17 +11,17 @@ st.set_page_config(page_title="Startup Investment Analysis", layout="wide")
 st.title("🚀 Startup Investment Analysis Dashboard")
 
 # Load dataset
-@st.cache_data  # Use st.cache if on older versions of Streamlit
+@st.cache_data
 def load_data():
     df = pd.read_csv('cleaned_investments.csv')
-    df.columns = df.columns.str.strip()
+    df.columns = df.columns.str.strip()  # Clean column names
     df['founded_year'] = pd.to_numeric(df['founded_year'], errors='coerce').fillna(0).astype(int)
     df['funding_total_usd'] = pd.to_numeric(df['funding_total_usd'], errors='coerce').fillna(0)
     return df
 
 df = load_data()
 
-# Sidebar filters
+# Sidebar filters - Clean and User-Friendly
 with st.sidebar:
     st.header("🔎 Filter Data")
 
@@ -36,7 +36,7 @@ with st.sidebar:
     with st.expander("Funding"):
         min_funding = st.slider("Minimum Funding (USD):", 0, int(df['funding_total_usd'].max()), 1000000, step=500000)
 
-# Apply filters
+# Filter the data
 filtered_df = df[
     df['market'].isin(selected_markets) &
     df['country_code'].isin(selected_countries) &
@@ -50,7 +50,7 @@ if filtered_df.empty:
     st.warning("No data found for the selected filters. Try adjusting them.")
     st.stop()
 
-# Display filtered data
+# Display filtered summary with clickable homepage_url if available
 st.markdown("## 📊 Data Overview")
 st.write("Filtered Rows:", filtered_df.shape[0])
 
@@ -59,9 +59,9 @@ if 'homepage_url' in filtered_df.columns:
     filtered_df_display['homepage_url'] = filtered_df_display['homepage_url'].apply(
         lambda x: f"[Visit Website]({x})" if pd.notna(x) else ""
     )
-    st.dataframe(filtered_df_display.head())  # Replaced markdown with dataframe
+    st.write(filtered_df_display.head().to_markdown(index=False), unsafe_allow_html=True)
 else:
-    st.dataframe(filtered_df.head())
+    st.write(filtered_df.head())
 
 # Visualization 1: Top Markets by Total Funding
 st.markdown("### 💡 Top Markets by Total Funding")
@@ -98,19 +98,17 @@ ax4.set_title("Top Countries")
 ax4.set_xlabel("Startup Count")
 st.pyplot(fig4)
 
-# Visualization 5: Funding Over the Years
+# Visualization 5: Funding Over Years
 st.markdown("### 📆 Total Funding Over the Years")
 yearly_funding = filtered_df.groupby('founded_year')['funding_total_usd'].sum()
-fig5 = px.line(x=yearly_funding.index, y=yearly_funding.values,
-               labels={'x': 'Year', 'y': 'Funding'}, title="Funding Over Time")
+fig5 = px.line(x=yearly_funding.index, y=yearly_funding.values, labels={'x': 'Year', 'y': 'Funding'}, title="Funding Over Time")
 st.plotly_chart(fig5, use_container_width=True)
 
-# Visualization 6: Funding Rounds vs Total Funding (if column exists)
-if 'funding_rounds' in filtered_df.columns:
-    st.markdown("### 🔄 Funding Rounds vs Total Funding")
-    fig6 = px.scatter(filtered_df, x='funding_rounds', y='funding_total_usd', color='status',
-                      log_y=True, title="Funding Rounds vs Total Funding")
-    st.plotly_chart(fig6, use_container_width=True)
+# Visualization 6: Funding Rounds vs Total Funding
+st.markdown("### 🔄 Funding Rounds vs Total Funding")
+fig6 = px.scatter(filtered_df, x='funding_rounds', y='funding_total_usd', color='status',
+                  log_y=True, title="Funding Rounds vs Total Funding")
+st.plotly_chart(fig6, use_container_width=True)
 
 # Visualization 7: Market Share by Count
 st.markdown("### 📊 Market Share (Top 5)")
@@ -120,30 +118,27 @@ ax7.pie(top_market_counts, labels=top_market_counts.index, autopct='%1.1f%%', st
 ax7.set_title("Startup Share by Market")
 st.pyplot(fig7)
 
-# Visualization 8: Funding by Type (check columns)
+# Visualization 8: Funding Type
+st.markdown("### 💸 Funding by Type")
 funding_columns = ['seed', 'venture', 'round_A', 'round_B', 'round_C', 'round_D']
 funding_types_present = [col for col in funding_columns if col in filtered_df.columns]
 
 if funding_types_present:
-    st.markdown("### 💸 Funding by Type")
     funding_by_type = filtered_df[funding_types_present].sum()
     fig8, ax8 = plt.subplots()
     sns.barplot(x=funding_by_type.index, y=funding_by_type.values, palette='Blues', ax=ax8)
     ax8.set_title("Funding by Type")
     st.pyplot(fig8)
 
-# Visualization 9: Acquisition Rate by Market
+# Visualization 9: Acquisition Rate
 if 'acquired' in filtered_df['status'].values:
     st.markdown("### 📈 Acquisition Rate by Market")
     status_data = filtered_df.groupby(['market', 'status']).size().unstack(fill_value=0)
-    if 'acquired' in status_data.columns:
-        status_data['acq_rate'] = status_data['acquired'] / status_data.sum(axis=1)
-        top_acq = status_data['acq_rate'].sort_values(ascending=False).head(5)
-        fig9, ax9 = plt.subplots()
-        sns.barplot(x=top_acq.values, y=top_acq.index, palette='Greens', ax=ax9)
-        ax9.set_title("Top Acquisition Markets")
-        st.pyplot(fig9)
-    else:
-        st.info("No acquisition data available for the selected filters.")
+    status_data['acq_rate'] = status_data['acquired'] / status_data.sum(axis=1)
+    top_acq = status_data['acq_rate'].sort_values(ascending=False).head(5)
+    fig9, ax9 = plt.subplots()
+    sns.barplot(x=top_acq.values, y=top_acq.index, palette='Greens', ax=ax9)
+    ax9.set_title("Top Acquisition Markets")
+    st.pyplot(fig9)
 else:
     st.info("No acquisitions found in the filtered data.")
