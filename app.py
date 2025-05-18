@@ -118,3 +118,4 @@ else:
         st.pyplot(fig9)
     else:
         st.info("No acquisitions in selected filters.")
+        
