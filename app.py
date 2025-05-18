@@ -4,119 +4,117 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 
-# Set page title
-st.title("Startup Investments Dashboard")
+# Set page config
+st.set_page_config(page_title="Startup Investments Dashboard", layout="wide")
 
-# Load cleaned data
+# Title
+st.title("🚀 Startup Investments Dashboard")
+
+# Load data
 try:
     df = pd.read_csv('cleaned_investments.csv')
 except FileNotFoundError:
-    st.error("The file 'cleaned_investments.csv' was not found. Please ensure it is in the project directory.")
+    st.error("The file 'cleaned_investments.csv' was not found. Please make sure it's in the app directory.")
     st.stop()
 
-# Strip whitespace from column names immediately
+# Clean columns and types
 df.columns = df.columns.str.strip()
-
-# Convert founded_year to numeric, coerce errors to NaN, then fill with 0 or drop
 df['founded_year'] = pd.to_numeric(df['founded_year'], errors='coerce').fillna(0).astype(int)
+df['funding_total_usd'] = pd.to_numeric(df['funding_total_usd'], errors='coerce').fillna(0)
 
-# Sidebar for filters
-st.sidebar.header("Filters")
-markets = st.sidebar.multiselect("Select Markets", options=df['market'].unique(), default=df['market'].unique()[:5])
-countries = st.sidebar.multiselect("Select Countries", options=df['country_code'].unique(), default=['USA', 'GBR'])
-status = st.sidebar.multiselect("Select Status", options=df['status'].unique(), default=df['status'].unique())
+# Sidebar filters
+st.sidebar.header("📊 Filter Options")
 
-# Filter data
+markets = st.sidebar.multiselect("Select Markets", options=df['market'].dropna().unique(), default=df['market'].dropna().unique()[:5])
+countries = st.sidebar.multiselect("Select Countries", options=df['country_code'].dropna().unique(), default=['USA', 'GBR'])
+status = st.sidebar.multiselect("Select Startup Status", options=df['status'].dropna().unique(), default=df['status'].dropna().unique())
+founded_year_range = st.sidebar.slider("Founded Year Range", int(df['founded_year'].min()), int(df['founded_year'].max()), (2005, 2015))
+min_funding = st.sidebar.slider("Minimum Total Funding (USD)", 0, int(df['funding_total_usd'].max()), 1000000, step=500000)
+
+# Apply filters
 filtered_df = df[
     df['market'].isin(markets) &
     df['country_code'].isin(countries) &
-    df['status'].isin(status)
+    df['status'].isin(status) &
+    (df['founded_year'].between(*founded_year_range)) &
+    (df['funding_total_usd'] >= min_funding)
 ]
 
-# Check if filtered_df is empty
+# Main layout
 if filtered_df.empty:
-    st.error("No data available for the selected filters. Please adjust your selections.")
+    st.warning("No data available for the selected filters.")
 else:
-    # Insight 1: Top Markets by Funding
-    st.header("Top Markets by Total Funding")
-    top_markets = filtered_df.groupby('market')['funding_total_usd'].sum().sort_values(ascending=False).head(10)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=top_markets.values, y=top_markets.index, ax=ax)
-    ax.set_title('Top 10 Markets by Total Funding (USD)')
-    ax.set_xlabel('Total Funding (USD)')
-    ax.set_ylabel('Market')
-    st.pyplot(fig)
+    col1, col2 = st.columns(2)
 
-    # Insight 2: Funding by Status
-    st.header("Funding Distribution by Status")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sns.boxplot(x='status', y='funding_total_usd', data=filtered_df, ax=ax)
-    ax.set_title('Funding Distribution by Startup Status')
-    ax.set_xlabel('Status')
-    ax.set_ylabel('Funding (USD)')
-    ax.set_yscale('log')
-    st.pyplot(fig)
+    with col1:
+        st.subheader("Top Markets by Total Funding")
+        top_markets = filtered_df.groupby('market')['funding_total_usd'].sum().sort_values(ascending=False).head(10)
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        sns.barplot(x=top_markets.values, y=top_markets.index, ax=ax1, palette='viridis')
+        ax1.set_title('Top 10 Markets by Total Funding (USD)')
+        ax1.set_xlabel('Total Funding (USD)')
+        ax1.set_ylabel('Market')
+        st.pyplot(fig1)
 
-    # Insight 3: Top Countries
-    st.header("Top Countries by Number of Startups")
-    top_countries = filtered_df['country_code'].value_counts().head(10)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=top_countries.values, y=top_countries.index, ax=ax)
-    ax.set_title('Top 10 Countries by Number of Startups')
-    ax.set_xlabel('Number of Startups')
-    ax.set_ylabel('Country')
-    st.pyplot(fig)
+    with col2:
+        st.subheader("Top Markets by Average Funding")
+        avg_funding = filtered_df.groupby('market')['funding_total_usd'].mean().sort_values(ascending=False).head(5)
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        sns.barplot(x=avg_funding.values, y=avg_funding.index, ax=ax2, palette='Oranges_r')
+        ax2.set_title('Top 5 Markets by Average Funding')
+        ax2.set_xlabel('Average Funding (USD)')
+        ax2.set_ylabel('Market')
+        st.pyplot(fig2)
 
-    # Insight 4: Funding Trends
-    st.header("Funding Trends Over Time")
+    st.subheader("Funding Distribution by Startup Status")
+    fig3, ax3 = plt.subplots(figsize=(10, 6))
+    sns.boxplot(x='status', y='funding_total_usd', data=filtered_df, ax=ax3)
+    ax3.set_yscale('log')
+    ax3.set_title('Funding by Status')
+    st.pyplot(fig3)
+
+    st.subheader("Top Countries by Startup Count")
+    country_counts = filtered_df['country_code'].value_counts().head(10)
+    fig4, ax4 = plt.subplots(figsize=(10, 6))
+    sns.barplot(x=country_counts.values, y=country_counts.index, ax=ax4)
+    ax4.set_title('Top 10 Countries by Number of Startups')
+    st.pyplot(fig4)
+
+    st.subheader("Funding Over Time")
     funding_by_year = filtered_df.groupby('founded_year')['funding_total_usd'].sum()
-    fig, ax = plt.subplots(figsize=(12, 6))
-    funding_by_year.plot(kind='line', ax=ax)
-    ax.set_title('Total Funding by Founded Year')
-    ax.set_xlabel('Founded Year')
-    ax.set_ylabel('Total Funding (USD)')
-    st.pyplot(fig)
+    fig5 = px.line(funding_by_year, x=funding_by_year.index, y=funding_by_year.values, labels={'x': 'Founded Year', 'y': 'Total Funding'}, title="Funding Trends Over Time")
+    st.plotly_chart(fig5, use_container_width=True)
 
-    # Insight 5: Funding Rounds vs. Funding
-    st.header("Funding Rounds vs. Total Funding")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sns.scatterplot(x='funding_rounds', y='funding_total_usd', data=filtered_df, ax=ax)
-    ax.set_title('Funding Rounds vs. Total Funding')
-    ax.set_xlabel('Number of Funding Rounds')
-    ax.set_ylabel('Total Funding (USD)')
-    ax.set_yscale('log')
-    st.pyplot(fig)
+    st.subheader("Funding Rounds vs Total Funding")
+    fig6 = px.scatter(filtered_df, x='funding_rounds', y='funding_total_usd', color='status',
+                      labels={'funding_rounds': 'Funding Rounds', 'funding_total_usd': 'Total Funding (USD)'},
+                      log_y=True, title="Funding Rounds vs Total Funding")
+    st.plotly_chart(fig6, use_container_width=True)
 
-    # Insight 6: Market Share
-    st.header("Market Share by Number of Startups")
-    top_markets_count = filtered_df['market'].value_counts().head(5)
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(top_markets_count, labels=top_markets_count.index, autopct='%1.1f%%')
-    ax.set_title('Top 5 Markets by Number of Startups')
-    st.pyplot(fig)
+    st.subheader("Market Share by Number of Startups")
+    top_markets_share = filtered_df['market'].value_counts().head(5)
+    fig7, ax7 = plt.subplots()
+    ax7.pie(top_markets_share, labels=top_markets_share.index, autopct='%1.1f%%', startangle=140)
+    ax7.set_title("Top 5 Markets by Startup Count")
+    st.pyplot(fig7)
 
-    # Insight 7: Funding by Type
-    st.header("Funding by Funding Type")
+    st.subheader("Funding by Funding Type")
     funding_types = ['seed', 'venture', 'round_A', 'round_B', 'round_C', 'round_D']
-    funding_sums = filtered_df[funding_types].sum()
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=funding_sums.index, y=funding_sums.values, ax=ax)
-    ax.set_title('Total Funding by Funding Type')
-    ax.set_xlabel('Funding Type')
-    ax.set_ylabel('Total Funding (USD)')
-    st.pyplot(fig)
+    existing_types = [col for col in funding_types if col in filtered_df.columns]
+    funding_by_type = filtered_df[existing_types].sum()
+    fig8, ax8 = plt.subplots(figsize=(10, 6))
+    sns.barplot(x=funding_by_type.index, y=funding_by_type.values, ax=ax8)
+    ax8.set_title("Total Funding by Type")
+    st.pyplot(fig8)
 
-    # Insight 8: Acquisition Rate
-    st.header("Top Markets by Acquisition Rate")
-    if 'acquired' in filtered_df['status'].unique():
+    st.subheader("Markets with Highest Acquisition Rates")
+    if 'acquired' in filtered_df['status'].values:
         market_status = filtered_df.groupby(['market', 'status']).size().unstack(fill_value=0)
         market_status['acquired_rate'] = market_status['acquired'] / market_status.sum(axis=1)
-        top_acquired = market_status['acquired_rate'].sort_values(ascending=False).head(5)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x=top_acquired.values, y=top_acquired.index, ax=ax)
-        ax.set_title('Top 5 Markets by Acquisition Rate')
-        ax.set_xlabel('Acquisition Rate')
-        ax.set_ylabel('Market')
-        st.pyplot(fig)
+        top_acq = market_status['acquired_rate'].sort_values(ascending=False).head(5)
+        fig9, ax9 = plt.subplots(figsize=(10, 6))
+        sns.barplot(x=top_acq.values, y=top_acq.index, ax=ax9)
+        ax9.set_title('Top Markets by Acquisition Rate')
+        st.pyplot(fig9)
     else:
-        st.warning("No startups with 'acquired' status found in filtered data to calculate acquisition rates.")
+        st.info("No acquisitions in selected filters.")
