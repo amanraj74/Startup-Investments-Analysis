@@ -21,6 +21,13 @@ for col in required_columns:
     if col not in df.columns:
         raise ValueError(f"Missing column: {col}")
 
+# Ensure numeric columns are properly converted
+df['founded_year'] = pd.to_numeric(df['founded_year'], errors='coerce').fillna(0).astype(int)
+df['funding_total_usd'] = pd.to_numeric(df['funding_total_usd'], errors='coerce').fillna(0)
+
+# Remove invalid years (0 or less)
+df = df[df['founded_year'] > 0]
+
 # Insight 1: Top markets by total funding
 top_markets = df.groupby('market')['funding_total_usd'].sum().sort_values(ascending=False).head(10)
 plt.figure(figsize=(10, 6))
@@ -54,11 +61,10 @@ plt.savefig('top_countries.png')
 plt.close()
 print("Insight 3: Top countries saved as 'top_countries.png'")
 
-# Convert founded_year to int (safe conversion)
-df['founded_year'] = pd.to_numeric(df['founded_year'], errors='coerce').fillna(0).astype(int)
-
 # Insight 4: Total funding by founded year
 funding_by_year = df.groupby('founded_year')['funding_total_usd'].sum()
+print(funding_by_year.head())  # Debug print
+
 plt.figure(figsize=(12, 6))
 funding_by_year.plot(kind='line')
 plt.title('Total Funding by Founded Year')
@@ -101,7 +107,6 @@ plt.close()
 print("Insight 7: Funding types saved as 'funding_types.png'")
 
 # Insight 8: Acquisition rate by market
-# Check 'acquired' status column exists or replace it if different
 if 'acquired' in df['status'].unique():
     market_status = df.groupby(['market', 'status']).size().unstack(fill_value=0)
     market_status['acquired_rate'] = market_status.get('acquired', 0) / market_status.sum(axis=1)
@@ -117,7 +122,7 @@ if 'acquired' in df['status'].unique():
 else:
     print("Warning: 'acquired' status not found in 'status' column, skipping acquisition rate insight.")
 
-# Write summary of insights
+# Write summary of insights to file
 with open('insights.txt', 'w') as f:
     f.write("Insight 1: Top markets by funding (see top_markets.png)\n")
     f.write("Insight 2: Funding distribution by status (see funding_by_status.png)\n")
@@ -127,3 +132,5 @@ with open('insights.txt', 'w') as f:
     f.write("Insight 6: Market share by startup count (see market_share.png)\n")
     f.write("Insight 7: Funding by type (see funding_types.png)\n")
     f.write("Insight 8: Top markets by acquisition rate (see acquisition_rate.png)\n")
+
+print("All insights generated and saved.")
